@@ -4,7 +4,7 @@ from typing import Optional, Union
 from aiohttp import JsonPayload
 from starlette.datastructures import Headers
 from fastapi_gateway.utils.form import CustomFormData
-from fastapi_gateway.utils.response import decode_json
+from fastapi_gateway.utils.response import decode_json, stream_file
 from fastapi_gateway.utils.request import create_dict_if_not
 
 
@@ -24,6 +24,18 @@ async def make_request(
             async with session.request(
                 method=method, url=url, params=query, data=data
             ) as response:
-                response_json = await response.json()
-                decoded_json = decode_json(data=response_json)
-                return decoded_json, response.status, response.headers
+                if response.headers["Content-Type"] == "application/json":
+                    response_json = await response.json()
+                    decoded_json = decode_json(data=response_json)
+                    return decoded_json, response.status, response.headers
+                elif response.headers["Content-Type"] == "application/octet-stream":
+                    file = await response.content.read()
+                    return stream_file(file), response.status, response.headers
+                elif "image/" in response.headers.get("Content-Type", ""):
+                    file = await response.content.read()
+                    return stream_file(file), response.status, response.headers
+                elif "text/" in response.headers.get("Content-Type", ""):
+                    text = await response.text()
+                    return text, response.status, response.headers
+                else:
+                    raise Exception(f"Content-Type: {response.headers['Content-Type']} not supported")

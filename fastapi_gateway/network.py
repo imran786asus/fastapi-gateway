@@ -22,9 +22,12 @@ async def make_request(
     async with async_timeout.timeout(delay=timeout):
         async with aiohttp.ClientSession(headers=headers) as session:
             async with session.request(
-                method=method, url=url, params=query, data=data
+                method=method, url=url, params=query, data=data,allow_redirects=False
             ) as response:
-                if response.headers["Content-Type"] == "application/json":
+                if response.status in {301, 302, 303, 307, 308}:
+                    redirect_url = response.headers.get('Location')
+                    return redirect_url, response.status, response.headers
+                elif response.headers["Content-Type"] == "application/json":
                     response_json = await response.json()
                     decoded_json = decode_json(data=response_json)
                     return decoded_json, response.status, response.headers
